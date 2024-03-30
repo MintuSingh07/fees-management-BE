@@ -21,7 +21,7 @@ mongoose.connect(process.env.MONGODB_URL)
 
 // ADD STUDENTS API
 app.post('/add-std', async (req, res) => {
-    const { fullName, phone } = req.body;
+    const { fullName, phone, stdClass} = req.body;
 
     const existStudent = await Student.findOne({ phone });
     if (!existStudent) {
@@ -29,7 +29,8 @@ app.post('/add-std', async (req, res) => {
             const newStudent = new Student({
                 fullName,
                 phone,
-                uuid: uuidv4().substring(0, 8)
+                stdClass,
+                uuid: uuidv4().substring(0, 8),
             });
             await newStudent.save();
             res.status(200).json({ message: "Student register sucessfully", newStudent });
@@ -56,7 +57,6 @@ app.put('/update-payment/:uuid', async (req, res) => {
         if (!student) {
             return res.status(404).json({ message: "Student not found" });
         }
-
         res.json({ message: "Payment status updated successfully", student }); // remove student from json when deploy.
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -64,7 +64,7 @@ app.put('/update-payment/:uuid', async (req, res) => {
 
 });
 
-// SAVE CURRENT MONTH DATA
+// //SAVE CURRENT MONTH DATA
 // cron.schedule('0 23 7 * *', async () => {
 //     try {
 //         const students = await Student.find();

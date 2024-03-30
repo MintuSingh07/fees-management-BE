@@ -19,6 +19,10 @@ const studentSchema = new mongoose.Schema({
     isPaid: {
         type: Boolean,
         default: false
+    },
+    stdClass: {
+        type: String,
+        required: true
     }
 });
 
