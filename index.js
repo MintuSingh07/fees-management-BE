@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
-// const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 const { default: mongoose } = require('mongoose');
 require('dotenv').config();
 
@@ -19,9 +19,10 @@ mongoose.connect(process.env.MONGODB_URL)
     .then(() => console.log("DB connected"))
     .catch((err) => console.log(`Error is ${err}`));
 
-// ADD STUDENTS API
+
+//! ADD STUDENTS API
 app.post('/add-std', async (req, res) => {
-    const { fullName, phone, stdClass} = req.body;
+    const { fullName, phone, stdClass } = req.body;
 
     const existStudent = await Student.findOne({ phone });
     if (!existStudent) {
@@ -41,12 +42,14 @@ app.post('/add-std', async (req, res) => {
         res.status(400).json({ error: "Student Already Exists" });
     }
 });
-// SHOW STUDENTS API
+
+//! SHOW STUDENTS API
 app.get("/std-list", async (req, res) => {
     const stdData = await Student.find({});
     res.status(200).json(stdData);
 });
-// STUDENT PAYMENT UPDATE API
+
+//! STUDENT PAYMENT UPDATE API
 app.put('/update-payment/:uuid', async (req, res) => {
     const { uuid } = req.params;
     const { isPaid } = req.body;
@@ -64,7 +67,7 @@ app.put('/update-payment/:uuid', async (req, res) => {
 
 });
 
-// //SAVE CURRENT MONTH DATA
+//! SAVE CURRENT MONTH DATA
 // cron.schedule('0 23 7 * *', async () => {
 //     try {
 //         const students = await Student.find();
@@ -111,6 +114,59 @@ app.put('/update-payment/:uuid', async (req, res) => {
 //     timezone: "Asia/Kolkata"
 // });
 
+//! Middleware to verify token
+function verifyToken(req, res, next) {
+    const token = req.header('Authorization');
+
+    if (!token) return res.status(401).json({ error: 'Login first' });
+    try {
+        const decoded = jwt.decode(token, process.env.SECRET);
+        req.uuid = decoded.uuid;
+        next();
+    } catch (error) {
+        res.status(401).json({ error: 'Invalid token' });
+    }
+}
+
+//! LOGIN
+app.post('/login', async (req, res) => {
+    const { fullName, uuid, stdClass } = req.body;
+
+    try {
+        const existStudent = await Student.findOne({ uuid });
+        if (existStudent) {
+            const token = jwt.sign({ uuid, fullName, stdClass }, process.env.SECRET, function (err, token) {
+                res.cookie('token', token, {
+                    httpOnly: true
+                });
+                // console.log(token);
+            });
+            res.status(200).json({ message: "Login Sucessfully", uuid });
+        } else {
+            res.status(400).json({ message: "UUID is not register or incorrect" });
+        }
+    } catch (error) {
+        res.status(400).json({ error: error });
+    }
+});
+
+//! Profile
+app.get('/profile', verifyToken, async (req, res) => {
+    const token = req.cookies.token;
+
+    if (!token) return res.status(401).json({ message: "Unauthorized" });
+
+    try {
+        const decoded = jwt.decode(token, process.env.SECRET);
+        const { uuid } = decoded;
+
+        const existStudent = await Student.findOne({ uuid });
+        if (!existStudent) return res.status(404).json({ message: "User not found" });
+        res.status(200).json({ existStudent });
+    } catch (error) {
+        res.status(401).json({ message: "Invalid token" });
+    }
+})
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
