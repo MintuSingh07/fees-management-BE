@@ -8,6 +8,7 @@ require('dotenv').config();
 
 const Student = require("./schema/Student.model");
 const FeesData = require('./schema/FeesData.model');
+const Admin = require('./schema/Admin.model');
 
 const app = express();
 const PORT = 8000;
@@ -33,6 +34,23 @@ function verifyToken(req, res, next) {
     }
 }
 
+//? ADMIN LOGIN
+app.post('/admin-login', async (req, res) => {
+    const { adminName, adminCode } = req.body;
+
+    try {
+        const existAdmin = await Admin.findOne({ adminCode });
+        if (existAdmin) {
+            const token = jwt.sign({ adminName, adminCode }, process.env.SECRET);
+            res.cookie('token', token, { httpOnly: true });
+            res.status(200).json({ message: "Login as admin is Successful", existAdmin });
+        } else {
+            res.status(400).json({ message: "Admin code is not valid" });
+        }
+    } catch (error) {
+        res.status(400).json({ error: error });
+    }
+});
 //? ADD STUDENTS API
 app.post('/add-std', async (req, res) => {
     const { fullName, phone, stdClass } = req.body;
@@ -55,22 +73,18 @@ app.post('/add-std', async (req, res) => {
         res.status(400).json({ error: "Student Already Exists" });
     }
 });
-//? LOGIN
+//? STUDENT LOGIN
 app.post('/login', async (req, res) => {
     const { fullName, uuid, stdClass } = req.body;
 
     try {
         const existStudent = await Student.findOne({ uuid });
         if (existStudent) {
-            const token = jwt.sign({ uuid, fullName, stdClass }, process.env.SECRET, function (err, token) {
-                res.cookie('token', token, {
-                    httpOnly: true
-                });
-                // console.log(token);
-            });
-            res.status(200).json({ message: "Login Sucessfully", uuid });
+            const token = jwt.sign({ uuid, fullName, stdClass }, process.env.SECRET);
+            res.cookie('token', token, { httpOnly: true });
+            res.status(200).json({ message: "Login Successfully", uuid });
         } else {
-            res.status(400).json({ message: "UUID is not register or incorrect" });
+            res.status(400).json({ message: "UUID is not registered or incorrect" });
         }
     } catch (error) {
         res.status(400).json({ error: error });

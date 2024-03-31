@@ -12,16 +12,12 @@ const studentSchema = new mongoose.Schema({
         type: String,
         unique: true
     },
-    isAdmin: {
-        type: Boolean,
-        default: false
-    },
     isPaid: {
         type: Boolean,
         default: false
     },
     stdClass: {
-        type: String,
+        type: Number,
         required: true
     }
 });
