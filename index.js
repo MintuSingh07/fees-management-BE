@@ -3,12 +3,16 @@ const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+
 const { default: mongoose } = require('mongoose');
 require('dotenv').config();
 
 const Student = require("./schema/Student.model");
 const FeesData = require('./schema/FeesData.model');
 const Admin = require('./schema/Admin.model');
+const ImageSchema = require('./schema/Images.model');
 
 const app = express();
 const PORT = 8000;
@@ -32,7 +36,25 @@ function verifyToken(req, res, next) {
     } catch (error) {
         res.status(401).json({ error: 'Invalid token' });
     }
-}
+};
+//! multer setup
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, './uploads')
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage: storage });
+
+app.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        res.status(400).json({ error: 'File upload error' });
+    } else {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 //? ADMIN LOGIN
 app.post('/admin-login', async (req, res) => {
@@ -128,6 +150,39 @@ app.put('/update-payment/:uuid', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 
+});
+//? IMAEG UPLOAD
+app.post('/upload',verifyToken, upload.array('images', 10), async (req, res) => {
+    try {
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ message: 'No files uploaded' });
+        }
+        if (req.files.length > 10) {
+            return res.status(400).json({ message: 'Maximum 10 files are allowed' });
+        }
+        const imagePaths = req.files.map(file => file.path);
+
+        const postDetails = new ImageSchema({
+            desc: req.body.desc,
+            imageUrls: imagePaths
+        });
+        console.log(postDetails);
+        await postDetails.save();
+
+        console.log(req.body.desc);
+        console.log(imagePaths);
+
+        res.status(200).json({ message: 'Images uploaded successfully', imagePaths });
+
+    } catch (error) {
+        console.error('Error uploading images:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+//? IMAGE RENDER
+app.get('/community',verifyToken, async(req, res)=> {
+    const postDetails = await ImageSchema.find();
+    res.status(200).json({postDetails});
 });
 
 //? SAVE CURRENT MONTH DATA
