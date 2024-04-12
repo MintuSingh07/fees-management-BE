@@ -26,12 +26,13 @@ mongoose.connect(process.env.MONGODB_URL)
 
 //! Middleware to verify student
 function verifyToken(req, res, next) {
-    const token = req.header('Authorization');
-
+    const token = req.headers.authorization;
+    
     if (!token) return res.status(401).json({ error: 'Login first' });
+
     try {
-        const decoded = jwt.decode(token, process.env.SECRET);
-        req.uuid = decoded.uuid;
+        const decoded = jwt.verify(token, process.env.SECRET);
+        req.user = decoded; // Assuming the decoded token contains user data including uuid
         next();
     } catch (error) {
         res.status(401).json({ error: 'Invalid token' });
@@ -47,7 +48,7 @@ const storage = multer.diskStorage({
     }
 });
 const upload = multer({ storage: storage });
-
+//! Multer Error Handeler
 app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError) {
         res.status(400).json({ error: 'File upload error' });
@@ -96,20 +97,20 @@ app.post('/add-std', async (req, res) => {
     }
 });
 //? STUDENT LOGIN
-app.post('/login', async (req, res) => {
+app.post('/std-login', async (req, res) => {
     const { fullName, uuid, stdClass } = req.body;
 
     try {
         const existStudent = await Student.findOne({ uuid });
         if (existStudent) {
-            const token = jwt.sign({ uuid, fullName, stdClass }, process.env.SECRET);
-            res.cookie('token', token, { httpOnly: true });
-            res.status(200).json({ message: "Login Successfully", uuid });
+            const token = jwt.sign({ uuid, fullName, stdClass }, process.env.SECRET, {expiresIn: '90d'});
+            console.log("token is", token);
+            return res.status(200).json({ message: "Login Successfully", token });
         } else {
-            res.status(400).json({ message: "UUID is not registered or incorrect" });
+            return res.status(400).json({ message: "UUID is not registered or incorrect" });
         }
     } catch (error) {
-        res.status(400).json({ error: error });
+        return res.status(400).json({ error: error.message });
     }
 });
 //? SHOW STUDENTS API
@@ -117,10 +118,10 @@ app.get("/std-list", async (req, res) => {
     const stdData = await Student.find({});
     res.status(200).json(stdData);
 });
-//? Profile
+//? PROFILE
 app.get('/profile', verifyToken, async (req, res) => {
-    const token = req.cookies.token;
-
+    const token = req.header('Authorization');
+    
     if (!token) return res.status(401).json({ message: "Unauthorized" });
 
     try {
@@ -152,7 +153,7 @@ app.put('/update-payment/:uuid', async (req, res) => {
 
 });
 //? IMAEG UPLOAD
-app.post('/upload',verifyToken, upload.array('images', 10), async (req, res) => {
+app.post('/upload', verifyToken, upload.array('images', 10), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ message: 'No files uploaded' });
@@ -180,9 +181,9 @@ app.post('/upload',verifyToken, upload.array('images', 10), async (req, res) => 
     }
 });
 //? IMAGE RENDER
-app.get('/community',verifyToken, async(req, res)=> {
+app.get('/community', verifyToken, async (req, res) => {
     const postDetails = await ImageSchema.find();
-    res.status(200).json({postDetails});
+    res.status(200).json({ postDetails });
 });
 
 //? SAVE CURRENT MONTH DATA
@@ -233,4 +234,4 @@ cron.schedule('0 0 8 * *', async () => {
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-})
+});
