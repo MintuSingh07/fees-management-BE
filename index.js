@@ -25,19 +25,21 @@ mongoose.connect(process.env.MONGODB_URL)
     .catch((err) => console.log(`Error is ${err}`));
 
 //! Middleware to verify student
-function verifyToken(req, res, next) {
-    const token = req.headers.authorization;
-    
+function verifyStdToken(req, res, next) {
+    let token = req.headers.authorization;
+    token = token.split(" ")[1];
+
     if (!token) return res.status(401).json({ error: 'Login first' });
 
     try {
         const decoded = jwt.verify(token, process.env.SECRET);
-        req.user = decoded; // Assuming the decoded token contains user data including uuid
+        req.user = decoded;
         next();
     } catch (error) {
         res.status(401).json({ error: 'Invalid token' });
     }
 };
+
 //! multer setup
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -64,9 +66,8 @@ app.post('/admin-login', async (req, res) => {
     try {
         const existAdmin = await Admin.findOne({ adminCode });
         if (existAdmin) {
-            const token = jwt.sign({ adminName, adminCode }, process.env.SECRET);
-            res.cookie('token', token, { httpOnly: true });
-            res.status(200).json({ message: "Login as admin is Successful", existAdmin });
+            const token = jwt.sign({ adminName, adminCode }, process.env.SECRET, { expiresIn: '90d' });
+            return res.status(200).json({ message: "Login as admin is Successful", token });
         } else {
             res.status(400).json({ message: "Admin code is not valid" });
         }
@@ -74,13 +75,20 @@ app.post('/admin-login', async (req, res) => {
         res.status(400).json({ error: error });
     }
 });
-//? ADD STUDENTS API
+//? ADD STUDENTS API ✅
 app.post('/add-std', async (req, res) => {
     const { fullName, phone, stdClass } = req.body;
 
-    const existStudent = await Student.findOne({ phone });
-    if (!existStudent) {
-        try {
+    const token = req.header('Authorization');
+
+    if (!token) {
+        return res.status(401).json({ message: "You are unauthorized to access this page..." });
+    }
+
+    try {
+        const existStudent = await Student.findOne({ phone });
+
+        if (!existStudent) {
             const newStudent = new Student({
                 fullName,
                 phone,
@@ -88,23 +96,22 @@ app.post('/add-std', async (req, res) => {
                 uuid: uuidv4().substring(0, 8),
             });
             await newStudent.save();
-            res.status(200).json({ message: "Student register sucessfully", newStudent });
-        } catch (error) {
-            res.status(400).json({ error: error });
+            return res.status(200).json({ message: "Student registered successfully", newStudent });
+        } else {
+            return res.status(400).json({ error: "Student Already Exists" });
         }
-    } else {
-        res.status(400).json({ error: "Student Already Exists" });
+    } catch (error) {
+        return res.status(500).json({ error: "Internal Server Error" });
     }
 });
-//? STUDENT LOGIN
+//? STUDENT LOGIN ✅
 app.post('/std-login', async (req, res) => {
-    const { fullName, uuid, stdClass } = req.body;
+    const { uuid } = req.body;
 
     try {
         const existStudent = await Student.findOne({ uuid });
         if (existStudent) {
-            const token = jwt.sign({ uuid, fullName, stdClass }, process.env.SECRET, {expiresIn: '90d'});
-            console.log("token is", token);
+            const token = jwt.sign({ uuid }, process.env.SECRET, { expiresIn: '90d' });
             return res.status(200).json({ message: "Login Successfully", token });
         } else {
             return res.status(400).json({ message: "UUID is not registered or incorrect" });
@@ -113,16 +120,23 @@ app.post('/std-login', async (req, res) => {
         return res.status(400).json({ error: error.message });
     }
 });
-//? SHOW STUDENTS API
+//? SHOW STUDENTS API ✅
 app.get("/std-list", async (req, res) => {
+    const token = req.header('Authorization');
+
+    if (!token) {
+        return res.status(401).json({ message: "You are unauthorized to access this page..." });
+    }
+
     const stdData = await Student.find({});
     res.status(200).json(stdData);
 });
-//? PROFILE
-app.get('/profile', verifyToken, async (req, res) => {
-    const token = req.header('Authorization');
-    
-    if (!token) return res.status(401).json({ message: "Unauthorized" });
+//? PROFILE ✅
+app.get('/profile', async (req, res) => {
+    let token = req.header('Authorization');
+    token = token.split(" ")[1];
+
+    if (!token) return res.status(401).json({ message: "You are unauthorized to access this page..." })
 
     try {
         const decoded = jwt.decode(token, process.env.SECRET);
@@ -135,7 +149,7 @@ app.get('/profile', verifyToken, async (req, res) => {
         res.status(401).json({ message: "Invalid token" });
     }
 });
-//? STUDENT PAYMENT UPDATE API
+//? STUDENT PAYMENT UPDATE API ✅
 app.put('/update-payment/:uuid', async (req, res) => {
     const { uuid } = req.params;
     const { isPaid } = req.body;
@@ -153,7 +167,7 @@ app.put('/update-payment/:uuid', async (req, res) => {
 
 });
 //? IMAEG UPLOAD
-app.post('/upload', verifyToken, upload.array('images', 10), async (req, res) => {
+app.post('/upload', verifyStdToken, upload.array('images', 10), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ message: 'No files uploaded' });
@@ -181,13 +195,13 @@ app.post('/upload', verifyToken, upload.array('images', 10), async (req, res) =>
     }
 });
 //? IMAGE RENDER
-app.get('/community', verifyToken, async (req, res) => {
+app.get('/community', verifyStdToken, async (req, res) => {
     const postDetails = await ImageSchema.find();
     res.status(200).json({ postDetails });
 });
 
 //? SAVE CURRENT MONTH DATA
-cron.schedule('0 23 7 * *', async () => {
+cron.schedule('0 23 28 * *', async () => {
     try {
         const students = await Student.find();
         const currentDate = new Date();
@@ -213,8 +227,8 @@ cron.schedule('0 23 7 * *', async () => {
     scheduled: true,
     timezone: "Asia/Kolkata"
 });
-//? RESET STUDENTS FEES DATA EVERY MONTH'S 8TH DAY
-cron.schedule('0 0 8 * *', async () => {
+//? RESET STUDENTS FEES DATA EVERY MONTH'S 1ST DAY
+cron.schedule('0 0 1 * *', async () => {
     try {
         const students = await Student.find();
         // Reset payment status for all students
