@@ -40,6 +40,22 @@ function verifyStdToken(req, res, next) {
     }
 };
 
+//! Middleware to verify student admin
+function verifyAdminToken(req, res, next) {
+    let admToken = req.headers.authorization;
+    admToken = admToken.split(" ")[1];
+
+    if (!admToken) return res.status(401).json({ error: 'Login first' });
+
+    try {
+        const decoded = jwt.verify(admToken, process.env.SECRET);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        res.status(401).json({ error: 'Invalid token' });
+    }
+}
+
 //! multer setup
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -79,9 +95,9 @@ app.post('/admin-login', async (req, res) => {
 app.post('/add-std', async (req, res) => {
     const { fullName, phone, stdClass } = req.body;
 
-    const token = req.header('Authorization');
+    const admToken = req.header('Authorization');
 
-    if (!token) {
+    if (!admToken) {
         return res.status(401).json({ message: "You are unauthorized to access this page..." });
     }
 
@@ -122,9 +138,9 @@ app.post('/std-login', async (req, res) => {
 });
 //? SHOW STUDENTS API ✅
 app.get("/std-list", async (req, res) => {
-    const token = req.header('Authorization');
+    const admToken = req.header('Authorization');
 
-    if (!token) {
+    if (!admToken) {
         return res.status(401).json({ message: "You are unauthorized to access this page..." });
     }
 
