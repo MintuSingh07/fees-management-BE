@@ -19,6 +19,7 @@ const PORT = 8000;
 
 app.use(express.json());
 app.use(cors());
+app.use('/upload', express.static('upload'))
 
 mongoose.connect(process.env.MONGODB_URL)
     .then(() => console.log("DB connected"))
@@ -59,8 +60,8 @@ function verifyAdminToken(req, res, next) {
 //! multer setup
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, './uploads')
-    },
+        cb(null, './upload/')
+    },  
     filename: function (req, file, cb) {
         cb(null, Date.now() + path.extname(file.originalname));
     }
@@ -75,7 +76,7 @@ app.use((err, req, res, next) => {
     }
 });
 
-//? ADMIN LOGIN
+//? ADMIN LOGIN ✅
 app.post('/admin-login', async (req, res) => {
     const { adminName, adminCode } = req.body;
 
@@ -182,8 +183,13 @@ app.put('/update-payment/:uuid', async (req, res) => {
     }
 
 });
-//? IMAEG UPLOAD
-app.post('/upload', verifyStdToken, upload.array('images', 10), async (req, res) => {
+//? IMAEG UPLOAD ✅
+app.post('/upload', upload.array('images', 10), async (req, res) => {
+    let token = req.header('Authorization');
+    token = token.split(" ")[1];
+
+    if (!token) return res.status(401).json({ message: "You are unauthorized to access this page..." })
+
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ message: 'No files uploaded' });
@@ -194,6 +200,7 @@ app.post('/upload', verifyStdToken, upload.array('images', 10), async (req, res)
         const imagePaths = req.files.map(file => file.path);
 
         const postDetails = new ImageSchema({
+            forClass: req.body.forClass,
             desc: req.body.desc,
             imageUrls: imagePaths
         });
@@ -210,8 +217,13 @@ app.post('/upload', verifyStdToken, upload.array('images', 10), async (req, res)
         res.status(500).json({ error: 'Internal server error' });
     }
 });
-//? IMAGE RENDER
-app.get('/community', verifyStdToken, async (req, res) => {
+//? IMAGE RENDER ✅
+app.get('/community', async (req, res) => {
+    let token = req.header('Authorization');
+    token = token.split(" ")[1];
+
+    if (!token) return res.status(401).json({ message: "You are unauthorized to access this page..." })
+
     const postDetails = await ImageSchema.find();
     res.status(200).json({ postDetails });
 });
