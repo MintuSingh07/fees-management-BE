@@ -5,7 +5,6 @@ const cron = require('node-cron');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
-
 const { default: mongoose } = require('mongoose');
 require('dotenv').config();
 
@@ -40,7 +39,6 @@ function verifyStdToken(req, res, next) {
         res.status(401).json({ error: 'Invalid token' });
     }
 };
-
 //! Middleware to verify student admin
 function verifyAdminToken(req, res, next) {
     let admToken = req.headers.authorization;
@@ -56,12 +54,11 @@ function verifyAdminToken(req, res, next) {
         res.status(401).json({ error: 'Invalid token' });
     }
 }
-
 //! multer setup
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, './upload/')
-    },  
+    },
     filename: function (req, file, cb) {
         cb(null, Date.now() + path.extname(file.originalname));
     }
@@ -75,6 +72,11 @@ app.use((err, req, res, next) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+const accountSid = process.env.ACCSID;
+const authToken = process.env.AUTHTOKEN;
+const client = require('twilio')(accountSid, authToken);
+
 
 //? ADMIN LOGIN ✅
 app.post('/admin-login', async (req, res) => {
@@ -102,6 +104,14 @@ app.post('/add-std', async (req, res) => {
         return res.status(401).json({ message: "You are unauthorized to access this page..." });
     }
 
+    // let updatedNum = phone;
+    // let tempNum = phone.substring(0, 2); // Get the first two characters of the phone number
+    // console.log(tempNum);
+    // if (tempNum !== '+91') { // Check if the first two characters are not equal to '+91'
+    //     updatedNum = '+91' + phone; // Prepend '+91' to the phone number
+    //     console.log(updatedNum);
+    // }
+    
     try {
         const existStudent = await Student.findOne({ phone });
 
@@ -274,6 +284,30 @@ cron.schedule('0 0 1 * *', async () => {
     timezone: "Asia/Kolkata"
 });
 
+//? SEND MESSAGE TO STUDENTS WHO DOES'NT PAY
+cron.schedule('0 0 11 * *', async () => {
+    const unpaidStudents = await Student.find({ isPaid: false });
+    const currentDate = new Date();
+    const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
+    const currentYear = currentDate.getFullYear();
+
+    unpaidStudents.forEach(async student => {
+        try {
+            await client.messages.create({
+                from: process.env.NUMBER,
+                to: student.phone,
+                body: `Reminder: ${student.fullName}, Your payment of ${currentMonth},${currentYear} is pending. Please clear the fees as soon as possible.`
+            }).then(message => console.log(message.sid)).done();
+
+        } catch (error) {
+            console.error(`Error sending message to ${student.phone}:`, error);
+        }
+    })
+}, {
+    scheduled: true,
+    timezone: "Asia/Kolkata"
+})
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-});
+}); 
