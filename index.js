@@ -285,7 +285,7 @@ cron.schedule('0 0 1 * *', async () => {
 });
 
 //? SEND MESSAGE TO STUDENTS WHO DOES'NT PAY
-cron.schedule('0 0 11 * *', async () => {
+cron.schedule('0 10 6 * *', async () => {
     const unpaidStudents = await Student.find({ isPaid: false });
     const currentDate = new Date();
     const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
