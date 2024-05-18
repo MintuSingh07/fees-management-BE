@@ -104,14 +104,6 @@ app.post('/add-std', async (req, res) => {
         return res.status(401).json({ message: "You are unauthorized to access this page..." });
     }
 
-    // let updatedNum = phone;
-    // let tempNum = phone.substring(0, 2); // Get the first two characters of the phone number
-    // console.log(tempNum);
-    // if (tempNum !== '+91') { // Check if the first two characters are not equal to '+91'
-    //     updatedNum = '+91' + phone; // Prepend '+91' to the phone number
-    //     console.log(updatedNum);
-    // }
-    
     try {
         const existStudent = await Student.findOne({ phone });
 
@@ -191,8 +183,20 @@ app.put('/update-payment/:uuid', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
-
 });
+//? Delete Student
+app.delete('/remove/:uuid', async (req, res) => {
+    const { uuid } = req.params;
+    try {
+        const student = await Student.findOneAndDelete(uuid);
+        if (!student) {
+            return res.status(404).json({ message: "Student not found" });
+        }
+        res.json({ message: "Student removed successfully", student });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+})
 //? IMAEG UPLOAD ✅
 app.post('/upload', upload.array('images', 10), async (req, res) => {
     let token = req.header('Authorization');
@@ -285,7 +289,7 @@ cron.schedule('0 0 1 * *', async () => {
 });
 
 //? SEND MESSAGE TO STUDENTS WHO DOES'NT PAY
-cron.schedule('0 10 6 * *', async () => {
+cron.schedule('0 10 11 * *', async () => {
     const unpaidStudents = await Student.find({ isPaid: false });
     const currentDate = new Date();
     const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
@@ -295,18 +299,18 @@ cron.schedule('0 10 6 * *', async () => {
         try {
             await client.messages.create({
                 from: process.env.NUMBER,
-                to: student.phone,
+                to: "+91" + student.phone,
                 body: `Reminder: ${student.fullName}, Your payment of ${currentMonth},${currentYear} is pending. Please clear the fees as soon as possible.`
-            }).then(message => console.log(message.sid)).done();
+            }).then(message => console.log(message.sid));
 
         } catch (error) {
             console.error(`Error sending message to ${student.phone}:`, error);
         }
-    })
+    });
 }, {
     scheduled: true,
     timezone: "Asia/Kolkata"
-})
+});
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
